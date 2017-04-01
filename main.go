@@ -51,5 +51,7 @@ func testGenLicense() {
 
 func main() {
 	// testGenKey()
-	testGenLicense()
+	// testGenLicense()
+	// lib.TestEncryption()
+	lib.TestSigning()
 }
