@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -12,11 +13,19 @@ import (
 
 type PrivateKey *rsa.PrivateKey
 
-type LiceseInfo struct {
-	Name       string
-	Expiration time.Time
+// LicenseInfo - Core information about a license
+type LicenseInfo struct {
+	Name       string    `json:"name"`
+	Expiration time.Time `json:"expiration"`
 }
 
+// LicenseData - This is the license data we serialise into a license file
+type LicenseData struct {
+	Info LicenseInfo `json:"info"`
+	Key  string      `json:"key"`
+}
+
+// License check error codes
 const (
 	Error   = iota // io or other type of error computing with keys
 	Invalid        // signature mismatch error (invalid license)
@@ -50,24 +59,20 @@ func privateKeyStuff() error {
 	return nil
 }
 
-func CheckLicense(info *LiceseInfo, file string) int {
-	fmt.Println("Checking License for", info.Name)
-
-	// if err := privateKeyStuff(); err != nil {
-	// 	fmt.Fprintf(os.Stderr, "Error: %s", err)
-	// 	return false
-	// }
-
-	return Valid
-}
-
 func GenKey(len int) (PrivateKey, error) {
 	key, err := rsa.GenerateKey(rand.Reader, len)
 	return PrivateKey(key), err
 }
 
-func GenLicense(info *LiceseInfo, key PrivateKey, w io.Writer) bool {
+func GenLicenseFile(info *LicenseInfo, key PrivateKey, w io.Writer) bool {
 	fmt.Fprintf(w, "New license to %s, expiring on: %s", info.Name, info.Expiration)
+
+	licenseData := LicenseData{Info: *info}
+	licenseData.Key = "<signed key>"
+
+	licData, _ := json.Marshal(licenseData)
+	fmt.Fprintln(w, string(licData))
+
 	return true
 }
 
@@ -116,4 +121,16 @@ func TestSigning() {
 	}
 
 	fmt.Printf("PSS Signature : %x\n", signature)
+
+	if err := rsa.VerifyPSS(&key.PublicKey, newhash, hashed, signature, &opts); err != nil {
+		fmt.Println("error verifying:", err)
+	} else {
+		fmt.Println("Verified!")
+	}
+
+	fmt.Println("Verified Signature!")
+}
+
+func CheckLicenseFile(licenseFile string) int {
+	return Error
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"time"
@@ -20,20 +21,6 @@ func testGenKey() {
 
 }
 
-func genCheckLicense() {
-	info := &lib.LiceseInfo{
-		Name:       "Chathura",
-		Expiration: time.Date(2017, time.July, 16, 0, 0, 0, 0, time.UTC),
-	}
-
-	switch status := lib.CheckLicense(info, "test.lic"); status {
-	case lib.Valid:
-		fmt.Println("Ok")
-	default:
-		fmt.Println("License check failed:", status)
-	}
-}
-
 func testGenLicense() {
 	key, err := lib.GenKey(2048)
 	if err != nil {
@@ -41,17 +28,45 @@ func testGenLicense() {
 		return
 	}
 
-	info := &lib.LiceseInfo{
+	info := &lib.LicenseInfo{
 		Name:       "Chathura",
 		Expiration: time.Date(2017, time.July, 16, 0, 0, 0, 0, time.UTC),
 	}
 
-	lib.GenLicense(info, key, os.Stdout)
+	lib.GenLicenseFile(info, key, os.Stdout)
 }
 
+var (
+	opPtr   = flag.String("op", "", "Operation type. Valid values are check, gen-lic, and gen-cert")
+	licPtr  = flag.String("lic", "", "license file")
+	keyPtr  = flag.String("key", "", "key file")
+	rsaBits = flag.Int("rsa-bits", 2048, "Size of RSA key to generate")
+)
+
 func main() {
-	// testGenKey()
-	// testGenLicense()
-	// lib.TestEncryption()
-	lib.TestSigning()
+	flag.Parse()
+
+	fmt.Println("op:", *opPtr)
+	fmt.Println("lic:", *licPtr)
+	fmt.Println("key:", *keyPtr)
+	fmt.Println("rsaBits:", *rsaBits)
+	fmt.Println("tail:", flag.Args())
+
+	switch *opPtr {
+	case "check":
+		fmt.Println("Checking license")
+		if *licPtr == "" {
+			fmt.Fprintf(os.Stderr, "License required for check")
+		} else {
+			lib.CheckLicenseFile(*licPtr)
+		}
+	case "gen-lic":
+		fmt.Println("Generating license")
+		testGenLicense()
+	case "gen-cert":
+		fmt.Println("Generating certificate")
+		// lib.GenerateCertificate()
+	default:
+		fmt.Fprintf(os.Stderr, "Invalid operation: %s", *opPtr)
+	}
 }
