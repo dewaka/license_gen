@@ -37,36 +37,33 @@ func testGenLicense() {
 }
 
 var (
-	opPtr   = flag.String("op", "", "Operation type. Valid values are check, gen-lic, and gen-cert")
-	licPtr  = flag.String("lic", "", "license file")
-	keyPtr  = flag.String("key", "", "key file")
-	rsaBits = flag.Int("rsa-bits", 2048, "Size of RSA key to generate")
+	typePtr = flag.String("type", "", "Operation type. Valid values are license or certificate.")
+	filePtr = flag.String("file", "", "File name - for either license or certificate.")
+	keyPtr  = flag.String("key", "", "Certificate key file. Only required if the type is license.")
+	rsaBits = flag.Int("rsa-bits", 2048, "Size of RSA key to generate. Only used when type is certificate.")
 )
 
 func main() {
 	flag.Parse()
 
-	fmt.Println("op:", *opPtr)
-	fmt.Println("lic:", *licPtr)
+	fmt.Println("type:", *typePtr)
+	fmt.Println("file:", *filePtr)
 	fmt.Println("key:", *keyPtr)
 	fmt.Println("rsaBits:", *rsaBits)
 	fmt.Println("tail:", flag.Args())
 
-	switch *opPtr {
-	case "check":
-		fmt.Println("Checking license")
-		if *licPtr == "" {
+	switch *typePtr {
+	case "lic", "license":
+		fmt.Println("Generating license")
+		if *filePtr == "" {
 			fmt.Fprintf(os.Stderr, "License required for check")
 		} else {
-			lib.CheckLicenseFile(*licPtr)
+			lib.CheckLicenseFile(*filePtr)
 		}
-	case "gen-lic":
+	case "cert", "certificate":
 		fmt.Println("Generating license")
 		testGenLicense()
-	case "gen-cert":
-		fmt.Println("Generating certificate")
-		// lib.GenerateCertificate()
 	default:
-		fmt.Fprintf(os.Stderr, "Invalid operation: %s", *opPtr)
+		fmt.Fprintf(os.Stderr, "Invalid operation type: %s", *typePtr)
 	}
 }
