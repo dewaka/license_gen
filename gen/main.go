@@ -54,16 +54,40 @@ func main() {
 
 	switch *typePtr {
 	case "lic", "license":
-		fmt.Println("Generating license")
 		if *filePtr == "" {
-			fmt.Fprintf(os.Stderr, "License required for check")
+			fmt.Fprintf(os.Stderr, "Certificate required for license generation\n")
+			os.Exit(1)
 		} else {
-			lib.CheckLicenseFile(*filePtr)
+			fmt.Println("Generating license")
+			testGenLicense()
 		}
 	case "cert", "certificate":
-		fmt.Println("Generating license")
-		testGenLicense()
+		if err := generateCertificate(); err != nil {
+			fmt.Fprintf(os.Stderr, "Certificate generation failed: %s\n", err)
+			os.Exit(1)
+		}
+	case "test":
+		hasError := false
+		if err := lib.TestReadPublicKey(); err != nil {
+			fmt.Println("Error reading public key:", err)
+			hasError = true
+		}
+
+		if err := lib.TestReadPrivateKey(); err != nil {
+			fmt.Println("Error reading private key:", err)
+			hasError = true
+		}
+
+		if hasError {
+			os.Exit(1)
+		}
 	default:
 		fmt.Fprintf(os.Stderr, "Invalid operation type: %s", *typePtr)
+		os.Exit(1)
 	}
+}
+
+func generateCertificate() error {
+	fmt.Println("Generating x509 Certificate")
+	return lib.GenerateCertificate("cert.pem", "key.pem", *rsaBits)
 }

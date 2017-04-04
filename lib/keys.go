@@ -19,6 +19,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/big"
 	"net"
@@ -63,6 +64,8 @@ type RSAKeyData struct {
 	ECDSACurve string
 }
 
+// TODO: Find out why this method does not produce de-serializable keys (i.e.
+// certificates produced by this method cannot be read back!)
 func GenerateRSACertificate(certName string, keyName string, rsaKeyData *RSAKeyData) error {
 	if len(rsaKeyData.Host) == 0 {
 		return fmt.Errorf("Host parameter is required")
@@ -100,7 +103,7 @@ func GenerateRSACertificate(certName string, keyName string, rsaKeyData *RSAKeyD
 	template := x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			Organization: []string{"Acme Co"},
+			Organization: []string{"Paraformance"},
 		},
 		NotBefore: notBefore,
 		NotAfter:  notAfter,
@@ -145,6 +148,85 @@ func GenerateRSACertificate(certName string, keyName string, rsaKeyData *RSAKeyD
 	pem.Encode(keyOut, pemBlockForKey(priv))
 	keyOut.Close()
 	log.Printf("Written %s\n", keyName)
+
+	return nil
+}
+
+func GenerateCertificate(certName string, keyName string, rsaBits int) error {
+	priv, err := rsa.GenerateKey(rand.Reader, rsaBits)
+	if err != nil {
+		return err
+	}
+
+	pubASN1, err := x509.MarshalPKIXPublicKey(&priv.PublicKey)
+	if err != nil {
+		return nil
+	}
+
+	pubBytes := pem.EncodeToMemory(&pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: pubASN1,
+	})
+	if err := ioutil.WriteFile(certName, pubBytes, 0644); err != nil {
+		return err
+	}
+
+	privBytes := x509.MarshalPKCS1PrivateKey(priv)
+	privBytes = pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: privBytes,
+	})
+	if err := ioutil.WriteFile(keyName, privBytes, 0644); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func TestReadPublicKey() error {
+	fmt.Println("Reading public key")
+
+	keyBytes, err := ioutil.ReadFile("cert.pem")
+	if err != nil {
+		return err
+	}
+	block, _ := pem.Decode(keyBytes)
+	fmt.Printf("block.Type: %s\n", block.Type)
+
+	pubkeyInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
+
+	if err != nil {
+		return fmt.Errorf("Error parsing public key: %s\n", err)
+	}
+
+	pubkey, ok := pubkeyInterface.(*rsa.PublicKey)
+	if !ok {
+		log.Fatal("Fatal error")
+	}
+
+	fmt.Println("We got public key:", pubkey)
+
+	return nil
+}
+
+func TestReadPrivateKey() error {
+	fmt.Println("Reading Private Key")
+
+	keyBytes, err := ioutil.ReadFile("key.pem")
+	if err != nil {
+		return err
+	}
+
+	block, _ := pem.Decode(keyBytes)
+	fmt.Printf("block.Type: %s\n", block.Type)
+
+	privKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		fmt.Println("error parsing private key:", err)
+		return err
+	}
+
+	fmt.Println("We got private key:", privKey)
 
 	return nil
 }
