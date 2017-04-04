@@ -25,7 +25,7 @@ func main() {
 }
 
 func checkLicense() error {
-	license, err := lib.ReadLicense(*licFile)
+	license, err := lib.ReadLicenseFromFile(*licFile)
 	if err != nil {
 		fmt.Println("Error:", err)
 		return err

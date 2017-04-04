@@ -19,6 +19,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"math/big"
@@ -183,8 +184,8 @@ func GenerateCertificate(certName string, keyName string, rsaBits int) error {
 	return nil
 }
 
-func ReadPublicKey(key string) (*rsa.PublicKey, error) {
-	keyBytes, err := ioutil.ReadFile(key)
+func ReadPublicKey(r io.Reader) (*rsa.PublicKey, error) {
+	keyBytes, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
@@ -205,24 +206,37 @@ func ReadPublicKey(key string) (*rsa.PublicKey, error) {
 	return pubkey, nil
 }
 
-func ReadPrivateKey(key string) (*rsa.PrivateKey, error) {
-	fmt.Println("Reading Private Key")
+func ReadPublicKeyFromFile(key string) (*rsa.PublicKey, error) {
+	file, err := os.Open(key)
+	defer file.Close()
+	if err != nil {
+		return nil, err
+	}
 
-	keyBytes, err := ioutil.ReadFile(key)
+	return ReadPublicKey(file)
+}
+
+func ReadPrivateKey(r io.Reader) (*rsa.PrivateKey, error) {
+	keyBytes, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
 
 	block, _ := pem.Decode(keyBytes)
-	fmt.Printf("block.Type: %s\n", block.Type)
-
 	privKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
-		fmt.Println("error parsing private key:", err)
 		return nil, err
 	}
 
-	fmt.Println("We got private key:", privKey)
-
 	return privKey, nil
+}
+
+func ReadPrivateKeyFromFile(key string) (*rsa.PrivateKey, error) {
+	file, err := os.Open(key)
+	defer file.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	return ReadPrivateKey(file)
 }

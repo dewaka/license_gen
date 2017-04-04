@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
 	"time"
 )
 
@@ -27,13 +28,21 @@ type LicenseData struct {
 	Key  string      `json:"key"`
 }
 
+func encodeKey(keyData []byte) string {
+	return base64.StdEncoding.EncodeToString(keyData)
+}
+
+func decodeKey(keyStr string) ([]byte, error) {
+	return base64.StdEncoding.DecodeString(keyStr)
+}
+
 func (lic *LicenseData) UpdateKey(privKey string) error {
 	jsonLicInfo, err := json.Marshal(lic.Info)
 	if err != nil {
 		return err
 	}
 
-	rsaPrivKey, err := ReadPrivateKey(privKey)
+	rsaPrivKey, err := ReadPrivateKeyFromFile(privKey)
 	if err != nil {
 		return err
 	}
@@ -43,19 +52,19 @@ func (lic *LicenseData) UpdateKey(privKey string) error {
 		return err
 	}
 
-	lic.Key = base64.StdEncoding.EncodeToString(signedData)
+	lic.Key = encodeKey(signedData)
 
 	return nil
 }
 
 func (lic *LicenseData) ValidateKey(pubKey string) error {
-	signedData, err := base64.StdEncoding.DecodeString(lic.Key)
+	signedData, err := decodeKey(lic.Key)
 	if err != nil {
 		return err
 	}
 
 	// Now we need to check whether we can verify this data or not
-	publicKey, err := ReadPublicKey(pubKey)
+	publicKey, err := ReadPublicKeyFromFile(pubKey)
 	if err != nil {
 		return err
 	}
@@ -82,8 +91,8 @@ func (lic *LicenseData) SaveLicense(licName string) error {
 	return ioutil.WriteFile(licName, jsonLic, 0644)
 }
 
-func ReadLicense(licFile string) (*LicenseData, error) {
-	ldata, err := ioutil.ReadFile(licFile)
+func ReadLicense(r io.Reader) (*LicenseData, error) {
+	ldata, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
@@ -96,6 +105,16 @@ func ReadLicense(licFile string) (*LicenseData, error) {
 	return &license, nil
 }
 
+func ReadLicenseFromFile(licFile string) (*LicenseData, error) {
+	file, err := os.Open(licFile)
+	defer file.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	return ReadLicense(file)
+}
+
 // License check error codes
 const (
 	Error   = iota // io or other type of error computing with keys
@@ -103,32 +122,6 @@ const (
 	Expired        // license is valid, but expired now
 	Valid          // valid non-expired license
 )
-
-func privateKeyStuff() error {
-
-	jimenaPrivateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-
-	if err != nil {
-		return err
-	}
-
-	jimenaPublicKey := &jimenaPrivateKey.PublicKey
-
-	alistairPrivateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-
-	if err != nil {
-		return err
-	}
-
-	alistairPublicKey := &alistairPrivateKey.PublicKey
-
-	fmt.Println("Private Key : ", jimenaPrivateKey)
-	fmt.Println("Public key ", jimenaPublicKey)
-	fmt.Println("Private Key : ", alistairPrivateKey)
-	fmt.Println("Public key ", alistairPublicKey)
-
-	return nil
-}
 
 func GenKey(len int) (PrivateKey, error) {
 	key, err := rsa.GenerateKey(rand.Reader, len)
@@ -145,65 +138,6 @@ func GenLicenseFile(info *LicenseInfo, key PrivateKey, w io.Writer) bool {
 	fmt.Fprintln(w, string(licData))
 
 	return true
-}
-
-func TestEncryption() {
-	key, err := GenKey(2048)
-	if err != nil {
-		fmt.Println("error:", err)
-		return
-	}
-
-	msg := []byte("show must go on")
-	label := []byte("")
-	hash := sha256.New()
-
-	ciphertext, err := rsa.EncryptOAEP(hash, rand.Reader, &key.PublicKey, msg, label)
-	if err != nil {
-		fmt.Println("Failed to encrypt:", err)
-		return
-	}
-
-	fmt.Printf("OAEP encrypted [%s] to \n[%x]\n", string(msg), ciphertext)
-}
-
-func TestSigning() {
-	key, err := GenKey(2048)
-	if err != nil {
-		fmt.Println("error:", err)
-		return
-	}
-	msg := []byte("show must go on")
-
-	var opts rsa.PSSOptions
-	opts.SaltLength = rsa.PSSSaltLengthAuto
-	PSSmessage := msg
-
-	newhash := crypto.SHA256
-	pssh := newhash.New()
-	pssh.Write(PSSmessage)
-	hashed := pssh.Sum(nil)
-
-	signature, err := rsa.SignPSS(rand.Reader, key, newhash, hashed, &opts)
-
-	if err != nil {
-		fmt.Println("Error creating signature:", err)
-		return
-	}
-
-	fmt.Printf("PSS Signature : %x\n", signature)
-
-	if err := rsa.VerifyPSS(&key.PublicKey, newhash, hashed, signature, &opts); err != nil {
-		fmt.Println("error verifying:", err)
-	} else {
-		fmt.Println("Verified!")
-	}
-
-	fmt.Println("Verified Signature!")
-}
-
-func CheckLicenseFile(licenseFile string) int {
-	return Error
 }
 
 // Sign signs data with rsa-sha256
@@ -234,7 +168,7 @@ func TestLicensingLogic(privKey, pubKey string) error {
 		return err
 	}
 
-	rsaPrivKey, err := ReadPrivateKey(privKey)
+	rsaPrivKey, err := ReadPrivateKeyFromFile(privKey)
 	if err != nil {
 		fmt.Println("Error reading private key:", err)
 		return err
@@ -246,7 +180,7 @@ func TestLicensingLogic(privKey, pubKey string) error {
 		return err
 	}
 
-	signedDataBase64 := base64.StdEncoding.EncodeToString(signedData)
+	signedDataBase64 := encodeKey(signedData)
 	fmt.Println("Signed data:", signedDataBase64)
 
 	// rsaPrivKey.Sign(rand io.Reader, msg []byte, opts crypto.SignerOpts)
@@ -263,14 +197,14 @@ func TestLicensingLogic(privKey, pubKey string) error {
 
 	fmt.Printf("License: \n%s\n", jsonLicData)
 
-	backFromBase64, err := base64.StdEncoding.DecodeString(signedDataBase64)
+	backFromBase64, err := decodeKey(signedDataBase64)
 	if err != nil {
 		fmt.Println("Error decoding base64")
 		return err
 	}
 
 	// Now we need to check whether we can verify this data or not
-	publicKey, err := ReadPublicKey(pubKey)
+	publicKey, err := ReadPublicKeyFromFile(pubKey)
 	if err != nil {
 		return err
 	}
@@ -314,4 +248,8 @@ func TestLicensing(privKey, pubKey string) error {
 	fmt.Println("License is still valid!")
 
 	return nil
+}
+
+func CheckLicenseFile(licenseFile string) int {
+	return Error
 }

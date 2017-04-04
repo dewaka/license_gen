@@ -33,13 +33,6 @@ var (
 func main() {
 	flag.Parse()
 
-	fmt.Println("type:", *typePtr)
-	fmt.Println("license file:", *licFile)
-	fmt.Println("public key:", *certKey)
-	fmt.Println("private key:", *privKey)
-	fmt.Println("rsaBits:", *rsaBits)
-	fmt.Println("tail:", flag.Args())
-
 	switch *typePtr {
 	case "lic", "license":
 		fmt.Println("Generating license")
@@ -53,12 +46,12 @@ func main() {
 		}
 	case "test":
 		hasError := false
-		if _, err := lib.ReadPublicKey("cert.pem"); err != nil {
+		if _, err := lib.ReadPublicKeyFromFile("cert.pem"); err != nil {
 			fmt.Println("Error reading public key:", err)
 			hasError = true
 		}
 
-		if _, err := lib.ReadPrivateKey("key.pem"); err != nil {
+		if _, err := lib.ReadPrivateKeyFromFile("key.pem"); err != nil {
 			fmt.Println("Error reading private key:", err)
 			hasError = true
 		}
