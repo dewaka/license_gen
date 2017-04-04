@@ -57,14 +57,8 @@ func (lic *LicenseData) UpdateKey(privKey string) error {
 	return nil
 }
 
-func (lic *LicenseData) ValidateKey(pubKey string) error {
+func (lic *LicenseData) ValidateLicenseKeyWithPublicKey(publicKey *rsa.PublicKey) error {
 	signedData, err := decodeKey(lic.Key)
-	if err != nil {
-		return err
-	}
-
-	// Now we need to check whether we can verify this data or not
-	publicKey, err := ReadPublicKeyFromFile(pubKey)
 	if err != nil {
 		return err
 	}
@@ -78,8 +72,16 @@ func (lic *LicenseData) ValidateKey(pubKey string) error {
 		return err
 	}
 
-	fmt.Println("Successfully signed!")
 	return nil
+}
+
+func (lic *LicenseData) ValidateLicenseKey(pubKey string) error {
+	publicKey, err := ReadPublicKeyFromFile(pubKey)
+	if err != nil {
+		return err
+	}
+
+	return lic.ValidateLicenseKeyWithPublicKey(publicKey)
 }
 
 func (lic *LicenseData) SaveLicense(licName string) error {
@@ -117,28 +119,12 @@ func ReadLicenseFromFile(licFile string) (*LicenseData, error) {
 
 // License check error codes
 const (
-	Error   = iota // io or other type of error computing with keys
-	Invalid        // signature mismatch error (invalid license)
-	Expired        // license is valid, but expired now
-	Valid          // valid non-expired license
+	ErrorLicRead = iota // io or other type of error computing with keys
+	ErrorPubKey         // public key error
+	Invalid             // signature mismatch error (invalid license)
+	Expired             // license is valid, but expired now
+	Valid               // valid non-expired license
 )
-
-func GenKey(len int) (PrivateKey, error) {
-	key, err := rsa.GenerateKey(rand.Reader, len)
-	return PrivateKey(key), err
-}
-
-func GenLicenseFile(info *LicenseInfo, key PrivateKey, w io.Writer) bool {
-	fmt.Fprintf(w, "New license to %s, expiring on: %s", info.Name, info.Expiration)
-
-	licenseData := LicenseData{Info: *info}
-	licenseData.Key = "<signed key>"
-
-	licData, _ := json.Marshal(licenseData)
-	fmt.Fprintln(w, string(licData))
-
-	return true
-}
 
 // Sign signs data with rsa-sha256
 func Sign(r *rsa.PrivateKey, data []byte) ([]byte, error) {
@@ -156,6 +142,7 @@ func Unsign(r *rsa.PublicKey, message []byte, sig []byte) error {
 	return rsa.VerifyPKCS1v15(r, crypto.SHA256, d, sig)
 }
 
+// TODO: Move this to a proper test
 func TestLicensingLogic(privKey, pubKey string) error {
 	fmt.Println("*** TestLicensingLogic ***")
 
@@ -213,8 +200,6 @@ func TestLicensingLogic(privKey, pubKey string) error {
 		fmt.Println("Couldn't Sign!")
 	}
 
-	fmt.Println("Successfully signed!")
-
 	return nil
 }
 
@@ -232,7 +217,7 @@ func TestLicensing(privKey, pubKey string) error {
 
 	fmt.Println("Key is:", licData.Key)
 
-	if err := licData.ValidateKey(pubKey); err != nil {
+	if err := licData.ValidateLicenseKey(pubKey); err != nil {
 		fmt.Println("Couldn't validate key")
 		return err
 	}
@@ -241,7 +226,7 @@ func TestLicensing(privKey, pubKey string) error {
 
 	licData.Info.Name = "Chat Colombage"
 
-	if err := licData.ValidateKey(pubKey); err != nil {
+	if err := licData.ValidateLicenseKey(pubKey); err != nil {
 		fmt.Println("Couldn't validate key")
 		return err
 	}
@@ -250,6 +235,24 @@ func TestLicensing(privKey, pubKey string) error {
 	return nil
 }
 
-func CheckLicenseFile(licenseFile string) int {
-	return Error
+// CheckLicenseFile reads a license from lr and then validate it against the
+// public key read from pkr
+func CheckLicense(lr, pkr io.Reader) int {
+	lic, err := ReadLicense(lr)
+	if err != nil {
+		return ErrorLicRead
+	}
+
+	publicKey, err := ReadPublicKey(pkr)
+	if err != nil {
+		return ErrorPubKey
+	}
+
+	if err := lic.ValidateLicenseKeyWithPublicKey(publicKey); err != nil {
+		return Invalid // we have a key mismatch here meaning license data is tampered
+	}
+
+	// TODO: check for other logic
+
+	return Valid
 }

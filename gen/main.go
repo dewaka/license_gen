@@ -9,18 +9,6 @@ import (
 	"github.com/dewaka/license_gen/lib"
 )
 
-func testGenKey() {
-	key, err := lib.GenKey(2048)
-	if err != nil {
-		fmt.Println("Error generating key!")
-		return
-	}
-
-	fmt.Println("Public Key: ", key.PublicKey)
-	fmt.Println("Private Key: ", key)
-
-}
-
 var (
 	typePtr = flag.String("type", "", "Operation type. Valid values are license or certificate.")
 	licFile = flag.String("lic", "license.json", "License file name. Required for license generation.")

@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 
 	"github.com/dewaka/license_gen/lib"
 )
@@ -10,37 +11,35 @@ import (
 var (
 	licFile = flag.String("lic", "license.json", "License file name. Required for license generation.")
 	certKey = flag.String("cert", "cert.pem", "Public certificate key.")
+	verbose = flag.Bool("verbose", false, "Print verbose messages")
 )
 
 func main() {
-	// fmt.Println("Hi there")
-	// if err := lib.TestLicensing("key.pem", "cert.pem"); err != nil {
-	// 	fmt.Println("Error licensing logic:", err)
-	// 	os.Exit(1)
-	// }
+	flag.Parse()
 
-	// fmt.Println("Done!")
+	if err := checkLicense(*verbose); err != nil {
+		fmt.Fprintf(os.Stderr, "License check failed: %s", err)
+		os.Exit(1)
+	}
 
-	checkLicense()
+	fmt.Println("License OK")
 }
 
-func checkLicense() error {
+func checkLicense(verbose bool) error {
 	license, err := lib.ReadLicenseFromFile(*licFile)
 	if err != nil {
-		fmt.Println("Error:", err)
-		return err
+		return fmt.Errorf("Read License failed: %s\n", err)
 	}
 
-	fmt.Println("Name:", license.Info.Name)
-	fmt.Println("Expiry:", license.Info.Expiration)
-	fmt.Println("Key:", license.Key)
-
-	if err := license.ValidateKey(*certKey); err != nil {
-		fmt.Println("License is not valid!")
-		return err
+	if verbose {
+		fmt.Println("Name:", license.Info.Name)
+		fmt.Println("Expiry:", license.Info.Expiration)
+		fmt.Println("Key:", license.Key)
 	}
 
-	fmt.Println("License is valid!")
+	if err := license.ValidateLicenseKey(*certKey); err != nil {
+		return fmt.Errorf("Invalid license: %s", err)
+	}
 
 	return nil
 }
