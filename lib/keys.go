@@ -183,20 +183,18 @@ func GenerateCertificate(certName string, keyName string, rsaBits int) error {
 	return nil
 }
 
-func TestReadPublicKey() error {
-	fmt.Println("Reading public key")
-
-	keyBytes, err := ioutil.ReadFile("cert.pem")
+func ReadPublicKey(key string) (*rsa.PublicKey, error) {
+	keyBytes, err := ioutil.ReadFile(key)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	block, _ := pem.Decode(keyBytes)
-	fmt.Printf("block.Type: %s\n", block.Type)
+	// fmt.Printf("block.Type: %s\n", block.Type)
 
 	pubkeyInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
 
 	if err != nil {
-		return fmt.Errorf("Error parsing public key: %s\n", err)
+		return nil, fmt.Errorf("Error parsing public key: %s\n", err)
 	}
 
 	pubkey, ok := pubkeyInterface.(*rsa.PublicKey)
@@ -204,17 +202,15 @@ func TestReadPublicKey() error {
 		log.Fatal("Fatal error")
 	}
 
-	fmt.Println("We got public key:", pubkey)
-
-	return nil
+	return pubkey, nil
 }
 
-func TestReadPrivateKey() error {
+func ReadPrivateKey(key string) (*rsa.PrivateKey, error) {
 	fmt.Println("Reading Private Key")
 
-	keyBytes, err := ioutil.ReadFile("key.pem")
+	keyBytes, err := ioutil.ReadFile(key)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	block, _ := pem.Decode(keyBytes)
@@ -223,10 +219,10 @@ func TestReadPrivateKey() error {
 	privKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
 		fmt.Println("error parsing private key:", err)
-		return err
+		return nil, err
 	}
 
 	fmt.Println("We got private key:", privKey)
 
-	return nil
+	return privKey, nil
 }

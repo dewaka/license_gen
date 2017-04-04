@@ -21,25 +21,12 @@ func testGenKey() {
 
 }
 
-func testGenLicense() {
-	key, err := lib.GenKey(2048)
-	if err != nil {
-		fmt.Println("error:", err)
-		return
-	}
-
-	info := &lib.LicenseInfo{
-		Name:       "Chathura",
-		Expiration: time.Date(2017, time.July, 16, 0, 0, 0, 0, time.UTC),
-	}
-
-	lib.GenLicenseFile(info, key, os.Stdout)
-}
-
 var (
 	typePtr = flag.String("type", "", "Operation type. Valid values are license or certificate.")
-	filePtr = flag.String("file", "", "File name - for either license or certificate.")
-	keyPtr  = flag.String("key", "", "Certificate key file. Only required if the type is license.")
+	licFile = flag.String("lic", "license.json", "License file name. Required for license generation.")
+	certKey = flag.String("cert", "cert.pem", "Public certificate key.")
+	privKey = flag.String("key", "key.pem", "Certificate key file. Required for license generation.")
+
 	rsaBits = flag.Int("rsa-bits", 2048, "Size of RSA key to generate. Only used when type is certificate.")
 )
 
@@ -47,19 +34,17 @@ func main() {
 	flag.Parse()
 
 	fmt.Println("type:", *typePtr)
-	fmt.Println("file:", *filePtr)
-	fmt.Println("key:", *keyPtr)
+	fmt.Println("license file:", *licFile)
+	fmt.Println("public key:", *certKey)
+	fmt.Println("private key:", *privKey)
 	fmt.Println("rsaBits:", *rsaBits)
 	fmt.Println("tail:", flag.Args())
 
 	switch *typePtr {
 	case "lic", "license":
-		if *filePtr == "" {
-			fmt.Fprintf(os.Stderr, "Certificate required for license generation\n")
-			os.Exit(1)
-		} else {
-			fmt.Println("Generating license")
-			testGenLicense()
+		fmt.Println("Generating license")
+		if err := generateLicense(); err != nil {
+			fmt.Println("Error generating license:", err)
 		}
 	case "cert", "certificate":
 		if err := generateCertificate(); err != nil {
@@ -68,12 +53,12 @@ func main() {
 		}
 	case "test":
 		hasError := false
-		if err := lib.TestReadPublicKey(); err != nil {
+		if _, err := lib.ReadPublicKey("cert.pem"); err != nil {
 			fmt.Println("Error reading public key:", err)
 			hasError = true
 		}
 
-		if err := lib.TestReadPrivateKey(); err != nil {
+		if _, err := lib.ReadPrivateKey("key.pem"); err != nil {
 			fmt.Println("Error reading private key:", err)
 			hasError = true
 		}
@@ -90,4 +75,14 @@ func main() {
 func generateCertificate() error {
 	fmt.Println("Generating x509 Certificate")
 	return lib.GenerateCertificate("cert.pem", "key.pem", *rsaBits)
+}
+
+func generateLicense() error {
+	expDate := time.Date(2017, 7, 16, 0, 0, 0, 0, time.UTC)
+	licInfo := lib.LicenseInfo{Name: "Chathura Colombage", Expiration: expDate}
+	licData := &lib.LicenseData{Info: licInfo}
+
+	licData.UpdateKey(*privKey)
+
+	return licData.SaveLicense(*licFile)
 }
