@@ -18,7 +18,7 @@ func main() {
 	flag.Parse()
 
 	if err := checkLicense(*verbose); err != nil {
-		fmt.Fprintf(os.Stderr, "License check failed: %s", err)
+		fmt.Fprintf(os.Stderr, "License check failed: %s\n", err)
 		os.Exit(1)
 	}
 
@@ -38,7 +38,19 @@ func checkLicense(verbose bool) error {
 	}
 
 	if err := license.ValidateLicenseKey(*certKey); err != nil {
-		return fmt.Errorf("Invalid license: %s", err)
+		return err
+	}
+
+	if verbose {
+		fmt.Println("License key verified!")
+	}
+
+	if err := license.CheckLicenseInfo(); err != nil {
+		return err
+	}
+
+	if verbose {
+		fmt.Println("License checks OK!")
 	}
 
 	return nil

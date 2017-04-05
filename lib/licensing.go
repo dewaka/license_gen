@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -14,7 +15,14 @@ import (
 	"time"
 )
 
-type PrivateKey *rsa.PrivateKey
+// License check errors
+var (
+	ErrorLicenseRead = errors.New("Could not read license")
+	ErrorPrivKeyRead = errors.New("Could not read private key")
+	ErrorPubKeyRead  = errors.New("Could not read public key")
+	InvalidLicense   = errors.New("Invalid License file")
+	ExpiredLicense   = errors.New("License expired")
+)
 
 // LicenseInfo - Core information about a license
 type LicenseInfo struct {
@@ -28,6 +36,11 @@ type LicenseData struct {
 	Key  string      `json:"key"`
 }
 
+// NewLicense from given info
+func NewLicense(name string, expiry time.Time) *LicenseData {
+	return &LicenseData{Info: LicenseInfo{Name: name, Expiration: expiry}}
+}
+
 func encodeKey(keyData []byte) string {
 	return base64.StdEncoding.EncodeToString(keyData)
 }
@@ -36,18 +49,14 @@ func decodeKey(keyStr string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(keyStr)
 }
 
-func (lic *LicenseData) UpdateKey(privKey string) error {
+// Sign the License by updating the LicenseData.Key with given RSA private key
+func (lic *LicenseData) Sign(pkey *rsa.PrivateKey) error {
 	jsonLicInfo, err := json.Marshal(lic.Info)
 	if err != nil {
 		return err
 	}
 
-	rsaPrivKey, err := ReadPrivateKeyFromFile(privKey)
-	if err != nil {
-		return err
-	}
-
-	signedData, err := Sign(rsaPrivKey, jsonLicInfo)
+	signedData, err := Sign(pkey, jsonLicInfo)
 	if err != nil {
 		return err
 	}
@@ -55,6 +64,17 @@ func (lic *LicenseData) UpdateKey(privKey string) error {
 	lic.Key = encodeKey(signedData)
 
 	return nil
+}
+
+// SignWithKey signs the License by updating the LicenseData.Key with given RSA
+// private key read from a file
+func (lic *LicenseData) SignWithKey(privKey string) error {
+	rsaPrivKey, err := ReadPrivateKeyFromFile(privKey)
+	if err != nil {
+		return err
+	}
+
+	return lic.Sign(rsaPrivKey)
 }
 
 func (lic *LicenseData) ValidateLicenseKeyWithPublicKey(publicKey *rsa.PublicKey) error {
@@ -84,7 +104,26 @@ func (lic *LicenseData) ValidateLicenseKey(pubKey string) error {
 	return lic.ValidateLicenseKeyWithPublicKey(publicKey)
 }
 
-func (lic *LicenseData) SaveLicense(licName string) error {
+// CheckLicenseInfo checks license for logical errors such as for license expiry
+func (lic *LicenseData) CheckLicenseInfo() error {
+	if time.Now().After(lic.Info.Expiration) {
+		return ExpiredLicense
+	}
+
+	return nil
+}
+
+func (lic *LicenseData) WriteLicense(w io.Writer) error {
+	jsonLic, err := json.MarshalIndent(lic, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	_, werr := fmt.Fprintf(w, "%s", string(jsonLic))
+	return werr
+}
+
+func (lic *LicenseData) SaveLicenseToFile(licName string) error {
 	jsonLic, err := json.MarshalIndent(lic, "", "  ")
 	if err != nil {
 		return err
@@ -116,15 +155,6 @@ func ReadLicenseFromFile(licFile string) (*LicenseData, error) {
 
 	return ReadLicense(file)
 }
-
-// License check error codes
-const (
-	ErrorLicRead = iota // io or other type of error computing with keys
-	ErrorPubKey         // public key error
-	Invalid             // signature mismatch error (invalid license)
-	Expired             // license is valid, but expired now
-	Valid               // valid non-expired license
-)
 
 // Sign signs data with rsa-sha256
 func Sign(r *rsa.PrivateKey, data []byte) ([]byte, error) {
@@ -210,7 +240,7 @@ func TestLicensing(privKey, pubKey string) error {
 	licInfo := LicenseInfo{Name: "Chathura Colombage", Expiration: expDate}
 	licData := &LicenseData{Info: licInfo}
 
-	if err := licData.UpdateKey(privKey); err != nil {
+	if err := licData.SignWithKey(privKey); err != nil {
 		fmt.Println("Couldn't update key")
 		return err
 	}
@@ -237,22 +267,20 @@ func TestLicensing(privKey, pubKey string) error {
 
 // CheckLicenseFile reads a license from lr and then validate it against the
 // public key read from pkr
-func CheckLicense(lr, pkr io.Reader) int {
+func CheckLicense(lr, pkr io.Reader) error {
 	lic, err := ReadLicense(lr)
 	if err != nil {
-		return ErrorLicRead
+		return ErrorLicenseRead
 	}
 
 	publicKey, err := ReadPublicKey(pkr)
 	if err != nil {
-		return ErrorPubKey
+		return ErrorPubKeyRead
 	}
 
 	if err := lic.ValidateLicenseKeyWithPublicKey(publicKey); err != nil {
-		return Invalid // we have a key mismatch here meaning license data is tampered
+		return InvalidLicense // we have a key mismatch here meaning license data is tampered
 	}
 
-	// TODO: check for other logic
-
-	return Valid
+	return lic.CheckLicenseInfo()
 }

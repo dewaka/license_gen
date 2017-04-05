@@ -14,8 +14,13 @@ var (
 	licFile = flag.String("lic", "license.json", "License file name. Required for license generation.")
 	certKey = flag.String("cert", "cert.pem", "Public certificate key.")
 	privKey = flag.String("key", "key.pem", "Certificate key file. Required for license generation.")
-
 	rsaBits = flag.Int("rsa-bits", 2048, "Size of RSA key to generate. Only used when type is certificate.")
+
+	// Required info for license generation
+	name    = flag.String("name", "", "Name of the Licensee")
+	expDate = flag.String("expiry", "", "Expiry date for the License. Expected format is 2006-1-02")
+
+	verbose = flag.Bool("verbose", true, "Print verbose messages")
 )
 
 func main() {
@@ -59,11 +64,33 @@ func generateCertificate() error {
 }
 
 func generateLicense() error {
-	expDate := time.Date(2017, 7, 16, 0, 0, 0, 0, time.UTC)
-	licInfo := lib.LicenseInfo{Name: "Chathura Colombage", Expiration: expDate}
-	licData := &lib.LicenseData{Info: licInfo}
+	if len(*name) == 0 {
+		return fmt.Errorf("Licensee name is empty")
+	}
 
-	licData.UpdateKey(*privKey)
+	date, err := time.Parse("2006-1-02", *expDate)
+	if err != nil {
+		return err
+	}
 
-	return licData.SaveLicense(*licFile)
+	lic := lib.NewLicense(*name, date)
+
+	if *verbose {
+		fmt.Println("Licensee:", *name)
+		fmt.Println("Expiry date:", date)
+		fmt.Println("Signing with private key:", *privKey)
+	}
+
+	if err := lic.SignWithKey(*privKey); err != nil {
+		return err
+	}
+
+	if *verbose {
+		fmt.Println("Signing OK. Saving License to:", *licFile)
+		fmt.Println("*** BEGIN LICENSE ***")
+		lic.WriteLicense(os.Stdout)
+		fmt.Println("\n*** END LICENSE ***")
+	}
+
+	return lic.SaveLicenseToFile(*licFile)
 }

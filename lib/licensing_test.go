@@ -101,9 +101,8 @@ func TestCheckLicense(t *testing.T) {
 	lreader := strings.NewReader(testLicense)
 	pkreader := strings.NewReader(pubKey)
 
-	retcode := lib.CheckLicense(lreader, pkreader)
-
-	if retcode != lib.Valid {
-		t.Errorf("Expected return code %d, but found %d\n", lib.Valid, retcode)
+	err := lib.CheckLicense(lreader, pkreader)
+	if err != nil {
+		t.Errorf("Expected nil error, but found %s\n", err)
 	}
 }
