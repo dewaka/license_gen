@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/dewaka/license_gen/lib"
@@ -17,14 +19,21 @@ var (
 	rsaBits = flag.Int("rsa-bits", 2048, "Size of RSA key to generate. Only used when type is certificate.")
 
 	// Required info for license generation
-	name    = flag.String("name", "", "Name of the Licensee")
-	expDate = flag.String("expiry", "", "Expiry date for the License. Expected format is 2006-1-02")
+	name      = flag.String("name", "", "Name of the Licensee")
+	expDate   = flag.String("expiry", "", "Expiry date for the License. Expected format is 2006-1-02")
+	platforms = flag.String("platforms", "linux,darwin,windows", "Comma separated list of platforms the license supports")
 
 	verbose = flag.Bool("verbose", true, "Print verbose messages")
 )
 
+func printPlatform() {
+	fmt.Println("Runtime:", runtime.GOOS)
+}
+
 func main() {
 	flag.Parse()
+
+	printPlatform()
 
 	switch *typePtr {
 	case "lic", "license":
@@ -73,10 +82,12 @@ func generateLicense() error {
 		return err
 	}
 
-	lic := lib.NewLicense(*name, date)
+	supPlatforms := strings.Split(*platforms, ",")
+	lic := lib.NewLicense(*name, date, supPlatforms)
 
 	if *verbose {
 		fmt.Println("Licensee:", *name)
+		fmt.Printf("Platforms: %v\n", supPlatforms)
 		fmt.Println("Expiry date:", date)
 		fmt.Println("Signing with private key:", *privKey)
 	}

@@ -12,21 +12,24 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"time"
 )
 
 // License check errors
 var (
-	ErrorLicenseRead = errors.New("Could not read license")
-	ErrorPrivKeyRead = errors.New("Could not read private key")
-	ErrorPubKeyRead  = errors.New("Could not read public key")
-	InvalidLicense   = errors.New("Invalid License file")
-	ExpiredLicense   = errors.New("License expired")
+	ErrorLicenseRead    = errors.New("Could not read license")
+	ErrorPrivKeyRead    = errors.New("Could not read private key")
+	ErrorPubKeyRead     = errors.New("Could not read public key")
+	InvalidLicense      = errors.New("Invalid License file")
+	ExpiredLicense      = errors.New("License expired")
+	UnsupportedPlatform = errors.New("License does not support current platform")
 )
 
 // LicenseInfo - Core information about a license
 type LicenseInfo struct {
 	Name       string    `json:"name"`
+	Platforms  []string  `json:"platforms"`
 	Expiration time.Time `json:"expiration"`
 }
 
@@ -37,8 +40,8 @@ type LicenseData struct {
 }
 
 // NewLicense from given info
-func NewLicense(name string, expiry time.Time) *LicenseData {
-	return &LicenseData{Info: LicenseInfo{Name: name, Expiration: expiry}}
+func NewLicense(name string, expiry time.Time, platforms []string) *LicenseData {
+	return &LicenseData{Info: LicenseInfo{Name: name, Platforms: platforms, Expiration: expiry}}
 }
 
 func encodeKey(keyData []byte) string {
@@ -106,8 +109,24 @@ func (lic *LicenseData) ValidateLicenseKey(pubKey string) error {
 
 // CheckLicenseInfo checks license for logical errors such as for license expiry
 func (lic *LicenseData) CheckLicenseInfo() error {
+	// Check validity of expiration date
 	if time.Now().After(lic.Info.Expiration) {
 		return ExpiredLicense
+	}
+
+	// Check validity of platform
+
+	platformOk := false
+	currentPlatform := runtime.GOOS
+	for _, p := range lic.Info.Platforms {
+		if p == currentPlatform {
+			platformOk = true
+			break
+		}
+	}
+
+	if !platformOk {
+		return UnsupportedPlatform
 	}
 
 	return nil

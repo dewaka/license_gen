@@ -20,3 +20,7 @@
 *.pem
 # License files are in json format, so ignore them too
 *.json
+
+# Standard build output
+lcheck
+lgen
