@@ -53,7 +53,7 @@ func main() {
 			os.Exit(1)
 		}
 	default:
-		fmt.Fprintf(os.Stderr, "Invalid operation type: %s", *typePtr)
+		fmt.Fprintf(os.Stderr, "Invalid operation type: '%s'\n", *typePtr)
 		os.Exit(1)
 	}
 }

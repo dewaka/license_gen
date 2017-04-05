@@ -18,4 +18,5 @@
 .idea/
 
 *.pem
-license.json
+# License files are in json format, so ignore them too
+*.json
